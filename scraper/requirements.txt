@@ -1,6 +1,14 @@
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
+certifi==2025.10.5
+cffi==2.0.0
 dotenv==0.9.9
 greenlet==3.2.4
+minio==7.2.18
 playwright==1.55.0
+pycparser==2.23
+pycryptodome==3.23.0
 pyee==13.0.0
 python-dotenv==1.2.1
 typing_extensions==4.15.0
+urllib3==2.5.0

@@ -5,6 +5,8 @@ WORKDIR /scraper
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN mkdir -p data
+
 COPY . .
 
 ENV LOG_LEVEL=INFO
