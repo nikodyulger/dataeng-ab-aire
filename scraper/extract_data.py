@@ -5,6 +5,7 @@ import unicodedata
 from datetime import datetime
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
+from minio import Minio
 
 if os.path.exists(".env"):
     load_dotenv()
@@ -15,13 +16,14 @@ FECHA_INICIAL = os.getenv("FECHA_INICIAL")  # YYYY-MM-DD
 FECHA_FINAL = os.getenv("FECHA_FINAL")  # YYYY-MM-DD
 HORA_INICIAL = os.getenv("HORA_INICIAL")  # HH:MM
 HORA_FINAL = os.getenv("HORA_FINAL")  # HH:MM
-ESTACION_METEO = os.getenv("ESTACION_METEO")
+ESTACION = os.getenv("ESTACION")
 TIPO_PARAMETROS = os.getenv("TIPO_PARAMETROS").upper()  # "CONTAMINANTE" or "METEO"
 PARAMETROS_CONTAMINANTES = ["PM10", "PM25", "NO2", "O3", "SO2", "CO", "CO2"]
 PARAMETROS_METEO = ["R", "DD", "VV", "TMP", "PRB", "HR"]
 PARAMETROS = (
     PARAMETROS_CONTAMINANTES if TIPO_PARAMETROS == "CONTAMINANTE" else PARAMETROS_METEO
 )
+BUCKET = os.getenv("MINIO_BUCKET")
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -33,20 +35,50 @@ def get_filename():
     station_name = re.sub(
         r"[^A-Za-z0-9]+",
         "_",
-        unicodedata.normalize("NFKD", ESTACION_METEO)
+        unicodedata.normalize("NFKD", ESTACION)
         .encode("ascii", "ignore")
         .decode("ascii")
         .replace(".", ""),
     ).strip("_")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{station_name}_{timestamp}.xlsx"
+
+    filename = f"{station_name}.xlsx"
     return filename
+
+
+def upload_to_minio(file_path, file_name, bucket_name):
+    """Sube un archivo local a un bucket de MinIO."""
+    client = Minio(
+        os.getenv("MINIO_ENDPOINT"),
+        access_key=os.getenv("MINIO_ACCESS_KEY"),
+        secret_key=os.getenv("MINIO_SECRET_KEY"),
+        secure=os.getenv("MINIO_ENDPOINT", "").startswith("https"),
+    )
+
+    found = client.bucket_exists(bucket_name)
+    if not found:
+        client.make_bucket(bucket_name)
+        logger.info(f"Bucket '{bucket_name}' creado en MinIO.")
+    else:
+        logger.info(f"Bucket '{bucket_name}' ya existe en MinIO.")
+
+    year = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").year
+    month = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").month
+    bucket_key = f"{year}/{month}/{TIPO_PARAMETROS}/{file_name}"
+
+    # Subir archivo
+    client.fput_object(
+        bucket_name=bucket_name, object_name=bucket_key, file_path=file_path
+    )
+    logger.info(f"Archivo subido a MinIO: {bucket_name}/{bucket_key}")
 
 
 with sync_playwright() as p:
 
     logger.info(f"Iniciando navegador y accediendo a {URL_PORTAL}")
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(
+        headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"]
+    )
+
     page = browser.new_page()
     page.goto(URL_PORTAL)
 
@@ -63,10 +95,10 @@ with sync_playwright() as p:
     # No hay etiquetas "select" tradicionales
     # Angular carga los elementos dinámicamente al abrir el dropdown
     # Seleccionamos la estación por su nombre
-    logger.info(f"Seleccionando estación: {ESTACION_METEO}")
+    logger.info(f"Seleccionando estación: {ESTACION}")
     page.locator("ng-select[bindlabel='nombreestacion']").click()
     page.wait_for_selector(".ng-dropdown-panel .ng-option")
-    page.locator(".ng-option-label", has_text=ESTACION_METEO).click()
+    page.locator(".ng-option-label", has_text=ESTACION).click()
     page.wait_for_timeout(1000)
 
     # Columnas de la tabla: vars meteorológicas o contaminantes
@@ -90,7 +122,7 @@ with sync_playwright() as p:
     page.locator("button:has-text('Consultar')").click()
 
     # Esperamos que aparezca el botón de descargar
-    page.wait_for_selector("a:has-text('Descargar')", timeout=5000)
+    page.wait_for_selector("a:has-text('Descargar')", timeout=30000)
 
     # Hacer clic en "Descargar" y esperar el archivo
     logger.info("Descargando archivo Excel…")
@@ -99,10 +131,16 @@ with sync_playwright() as p:
     download = download_info.value
 
     # Guardar el archivo en carpeta local
-    filename = get_filename()
-    output_filename_path = os.path.join(os.getcwd(), f"data/{filename}")
+    file_name = get_filename()
+    output_filename_path = os.path.join(os.getcwd(), f"data/{file_name}")
     download_path = download.path()
     download.save_as(output_filename_path)
     logger.info(f"Archivo guardado: {output_filename_path}")
+
+    upload_to_minio(
+        file_path=output_filename_path,
+        bucket_name=BUCKET,
+        file_name=file_name,
+    )
 
     browser.close()
