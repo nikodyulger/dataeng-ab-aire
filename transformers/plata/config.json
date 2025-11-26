@@ -1,0 +1,64 @@
+{
+    "RENAME_MAPS": {
+        "METEO": {
+            "R (db(A))": "ruido_db",
+            "DD (grados    )": "dir_viento",
+            "VV (km/h)": "vel_viento",
+            "TMP (ºC)": "temp_c",
+            "PRB (hPa)": "pres",
+            "HR (%)": "humedad",
+            "fecha": "fecha"
+        },
+        "CONTAMINANTE": {
+            "PM10 (µg/m³)": "pm10",
+            "PM25 (µg/m³)": "pm25",
+            "NO2 (µg/m³)": "no2",
+            "O3 (µg/m³)": "o3",
+            "SO2 (µg/m³)": "so2",
+            "CO (mg/m³)": "co",
+            "fecha": "fecha"
+        }
+    },
+    "ICA_LIMITS": {
+        "so2": [
+            { "min": 0,   "max": 100,  "categoria": "buena" },
+            { "min": 101, "max": 200,  "categoria": "razonablemente_buena" },
+            { "min": 201, "max": 350,  "categoria": "regular" },
+            { "min": 351, "max": 500,  "categoria": "desfavorable" },
+            { "min": 501, "max": 750,  "categoria": "muy_desfavorable" },
+            { "min": 751, "max": 1250, "categoria": "extremadamente_desfavorable" }
+        ],
+        "pm25": [
+            { "min": 0,  "max": 10,  "categoria": "buena" },
+            { "min": 11, "max": 20,  "categoria": "razonablemente_buena" },
+            { "min": 21, "max": 25,  "categoria": "regular" },
+            { "min": 26, "max": 50,  "categoria": "desfavorable" },
+            { "min": 51, "max": 75,  "categoria": "muy_desfavorable" },
+            { "min": 76, "max": 800, "categoria": "extremadamente_desfavorable" }
+        ],
+        "pm10": [
+            { "min": 0,   "max": 20,   "categoria": "buena" },
+            { "min": 21,  "max": 40,   "categoria": "razonablemente_buena" },
+            { "min": 41,  "max": 50,   "categoria": "regular" },
+            { "min": 51,  "max": 100,  "categoria": "desfavorable" },
+            { "min": 101, "max": 150,  "categoria": "muy_desfavorable" },
+            { "min": 151, "max": 1200, "categoria": "extremadamente_desfavorable" }
+        ],
+        "o3": [
+            { "min": 0,   "max": 50,   "categoria": "buena" },
+            { "min": 51,  "max": 100,  "categoria": "razonablemente_buena" },
+            { "min": 101, "max": 130,  "categoria": "regular" },
+            { "min": 131, "max": 240,  "categoria": "desfavorable" },
+            { "min": 241, "max": 380,  "categoria": "muy_desfavorable" },
+            { "min": 381, "max": 800,  "categoria": "extremadamente_desfavorable" }
+        ],
+        "no2": [
+            { "min": 0,   "max": 40,   "categoria": "buena" },
+            { "min": 41,  "max": 90,   "categoria": "razonablemente_buena" },
+            { "min": 91,  "max": 120,  "categoria": "regular" },
+            { "min": 121, "max": 230,  "categoria": "desfavorable" },
+            { "min": 231, "max": 340,  "categoria": "muy_desfavorable" },
+            { "min": 341, "max": 1000, "categoria": "extremadamente_desfavorable" }
+        ]
+    }
+}
