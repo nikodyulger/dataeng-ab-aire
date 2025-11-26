@@ -5,24 +5,8 @@
   "MINIO_ENDPOINT": "host.docker.internal:9000",
   "MINIO_ACCESS_KEY": "minioadmin",
   "MINIO_SECRET_KEY": "minioadmin",
-  "MINIO_BUCKET": "bronce",
-  "ESTACION": "Avda. Isabel La Católica (Isleta)",
-  "STATIONS": [
-    "Almansa esq. Hnos. Falcó (Hospital)",
-    "Arq. Vandelvira (CSC El Ensanche)",
-    "Av. España esq. Tetuán",
-    "Av. España frente Punta",
-    "Av. Toreros frente C.P. Feria",
-    "Avda. Isabel La Católica (Isleta)",
-    "Calle Caba Villacerrada",
-    "Ctra. Madrid esq. Cronista",
-    "Isleta Paseo Cuba (Ranas)",
-    "Paseo Cuba (Fábrica Harinas)",
-    "Paseo Feria Isleta Molino",
-    "Plaza Carretas",
-    "Plaza Isabel II",
-    "Rosario esquina Arquitecto Vandelvira",
-    "Seminario (Hospital Perpetuo Socorro)"
-  ],
-  "SCRAPER_DOCKER_IMAGE": "scraper-ab-aire:latest"
+  "MINIO_BUCKET_BRONCE": "bronce",
+  "MINIO_BUCKET_PLATA": "plata",
+  "SCRAPER_DOCKER_IMAGE": "scraper-ab-aire:latest",
+  "TRANSFORMER_PLATA_DOCKER_IMAGE": "transformer-plata:latest"
 }
