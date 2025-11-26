@@ -18,7 +18,7 @@ HORA_INICIAL = os.getenv("HORA_INICIAL")  # HH:MM
 HORA_FINAL = os.getenv("HORA_FINAL")  # HH:MM
 ESTACION = os.getenv("ESTACION")
 TIPO_PARAMETROS = os.getenv("TIPO_PARAMETROS").upper()  # "CONTAMINANTE" or "METEO"
-PARAMETROS_CONTAMINANTES = ["PM10", "PM25", "NO2", "O3", "SO2", "CO", "CO2"]
+PARAMETROS_CONTAMINANTES = ["PM10", "PM25", "NO2", "O3", "SO2", "CO"]
 PARAMETROS_METEO = ["R", "DD", "VV", "TMP", "PRB", "HR"]
 PARAMETROS = (
     PARAMETROS_CONTAMINANTES if TIPO_PARAMETROS == "CONTAMINANTE" else PARAMETROS_METEO
@@ -63,13 +63,15 @@ def upload_to_minio(file_path, file_name, bucket_name):
 
     year = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").year
     month = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").month
-    bucket_key = f"{year}/{month}/{TIPO_PARAMETROS}/{file_name}"
+    object_key = f"{year}/{month}/{TIPO_PARAMETROS}/{file_name}"
 
     # Subir archivo
     client.fput_object(
-        bucket_name=bucket_name, object_name=bucket_key, file_path=file_path
+        bucket_name=bucket_name, object_name=object_key, file_path=file_path
     )
-    logger.info(f"Archivo subido a MinIO: {bucket_name}/{bucket_key}")
+    logger.info(f"Archivo subido a MinIO: {bucket_name}/{object_key}")
+
+    return object_key
 
 
 with sync_playwright() as p:
@@ -137,10 +139,12 @@ with sync_playwright() as p:
     download.save_as(output_filename_path)
     logger.info(f"Archivo guardado: {output_filename_path}")
 
-    upload_to_minio(
+    object_key = upload_to_minio(
         file_path=output_filename_path,
         bucket_name=BUCKET,
         file_name=file_name,
     )
+
+    print(object_key)  # utilizar para el xcom airflow siguiente tarea
 
     browser.close()
