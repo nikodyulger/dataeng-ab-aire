@@ -1,12 +1,12 @@
-import os
-import json
-from datetime import datetime
-from airflow.sdk import dag, task, task_group
-from airflow.sdk import Asset, Variable
+from datetime import datetime, timedelta
+
+from airflow.sdk import dag, task_group, Variable
 from airflow.providers.docker.operators.docker import DockerOperator
 
-STATION_MAPPING = json.loads(os.getenv("STATION_MAPPING"))
-
+STATION_MAPPING = Variable.get(
+    "STATION_MAPPING",
+    deserialize_json=True,
+)
 SCRAPER_DOCKER_IMAGE = Variable.get("SCRAPER_DOCKER_IMAGE")
 TRANSFORMER_PLATA_DOCKER_IMAGE = Variable.get("TRANSFORMER_PLATA_DOCKER_IMAGE")
 
@@ -34,73 +34,62 @@ DOCKER_CONFIG = {
     "privileged": True,
 }
 
-for slug, estacion in STATION_MAPPING.items():
+SCRAPER_POOL = "scraper_pool"
+TRANSFORMER_POOL = "transformer_pool"
 
-    @dag(
-        dag_id=f"webscraping_{slug}",
-        start_date=datetime(2024, 1, 1),
-        end_date=datetime(2025, 11, 1),
-        schedule="@monthly",
-        catchup=True,
-        max_active_runs=1,
-        tags=[estacion],
-    )
-    def dag_webscraper_plata():
 
-        @task_group(group_id="etl_meteo")
-        def run_etl_meteo():
+@dag(
+    dag_id="etl_webscraping_plata",
+    start_date=datetime(2024, 1, 1),
+    end_date=datetime(2026, 1, 1),
+    schedule="@monthly",
+    catchup=True,
+    max_active_runs=1,
+    max_active_tasks=4,
+    default_args={"retries": 1, "retry_delay": timedelta(minutes=5)},
+    tags=["plata"],
+)
+def dag_webscraper_plata():
+    for slug, estacion in STATION_MAPPING.items():
 
-            scraper_meteo = DockerOperator(
-                task_id="scraper_meteo",
-                image=SCRAPER_DOCKER_IMAGE,
-                environment={
-                    **ENV_VARS_SCRAPERS,
-                    **ENV_VARS_MINIO,
-                    "ESTACION": estacion,
-                    "TIPO_PARAMETROS": "METEO",
-                },
-                **DOCKER_CONFIG,
-            )
+        @task_group(group_id=f"station_{slug}")
+        def station_group():
+            for tipo in ("METEO", "CONTAMINANTE"):
+                tipo_key = tipo.lower()
+                scraper_task_id = f"scraper_{tipo_key}"
+                transformer_task_id = f"transformer_{tipo_key}"
 
-            transformer_plata_meteo = DockerOperator(
-                task_id="transformer_plata_meteo",
-                image=TRANSFORMER_PLATA_DOCKER_IMAGE,
-                environment={
-                    **ENV_VARS_MINIO,
-                    "OBJECT_KEY": "{{ task_instance.xcom_pull(task_ids='etl_meteo.scraper_meteo') }}",
-                },
-                **DOCKER_CONFIG,
-            )
+                scraper = DockerOperator(
+                    task_id=scraper_task_id,
+                    image=SCRAPER_DOCKER_IMAGE,
+                    environment={
+                        **ENV_VARS_SCRAPERS,
+                        **ENV_VARS_MINIO,
+                        "SLUG": slug,
+                        "ESTACION": estacion,
+                        "TIPO_PARAMETROS": tipo,
+                        "OUTPUT_DIR": f"/tmp/{slug}/{tipo_key}",
+                    },
+                    do_xcom_push=True,
+                    pool=SCRAPER_POOL,
+                    **DOCKER_CONFIG,
+                )
 
-            scraper_meteo >> transformer_plata_meteo
+                transformer = DockerOperator(
+                    task_id=transformer_task_id,
+                    image=TRANSFORMER_PLATA_DOCKER_IMAGE,
+                    environment={
+                        **ENV_VARS_MINIO,
+                        "TIPO_PARAMETROS": tipo,
+                        "OBJECT_KEY": f"{{{{ task_instance.xcom_pull(task_ids='station_{slug}.scraper_{tipo_key}') }}}}",
+                    },
+                    pool=TRANSFORMER_POOL,
+                    **DOCKER_CONFIG,
+                )
 
-        @task_group(group_id="etl_contaminante")
-        def run_etl_contaminante():
+                scraper >> transformer
 
-            scraper_contaminante = DockerOperator(
-                task_id=f"scraper_contaminante",
-                image=SCRAPER_DOCKER_IMAGE,
-                environment={
-                    **ENV_VARS_SCRAPERS,
-                    **ENV_VARS_MINIO,
-                    "ESTACION": estacion,
-                    "TIPO_PARAMETROS": "CONTAMINANTE",
-                },
-                **DOCKER_CONFIG,
-            )
+        station_group()
 
-            transformer_plata_contam = DockerOperator(
-                task_id="transformer_plata_contaminante",
-                image=TRANSFORMER_PLATA_DOCKER_IMAGE,
-                environment={
-                    **ENV_VARS_MINIO,
-                    "OBJECT_KEY": "{{ task_instance.xcom_pull(task_ids='etl_contaminante.scraper_contaminante') }}",
-                },
-                **DOCKER_CONFIG,
-            )
 
-            scraper_contaminante >> transformer_plata_contam
-
-        run_etl_meteo() >> run_etl_contaminante()
-
-    dag_webscraper_plata()
+dag_webscraper_plata()
