@@ -1,7 +1,5 @@
 import os
-import re
 import logging
-import unicodedata
 from datetime import datetime
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
@@ -17,6 +15,7 @@ FECHA_FINAL = os.getenv("FECHA_FINAL")  # YYYY-MM-DD
 HORA_INICIAL = os.getenv("HORA_INICIAL")  # HH:MM
 HORA_FINAL = os.getenv("HORA_FINAL")  # HH:MM
 ESTACION = os.getenv("ESTACION")
+SLUG = os.getenv("SLUG")
 TIPO_PARAMETROS = os.getenv("TIPO_PARAMETROS").upper()  # "CONTAMINANTE" or "METEO"
 PARAMETROS_CONTAMINANTES = ["PM10", "PM25", "NO2", "O3", "SO2", "CO"]
 PARAMETROS_METEO = ["R", "DD", "VV", "TMP", "PRB", "HR"]
@@ -24,25 +23,10 @@ PARAMETROS = (
     PARAMETROS_CONTAMINANTES if TIPO_PARAMETROS == "CONTAMINANTE" else PARAMETROS_METEO
 )
 BUCKET = os.getenv("MINIO_BUCKET")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "data")
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
-
-
-def get_filename():
-    """Convierte a formato seguro (sin espacios, acentos ni símbolos)"""
-
-    station_name = re.sub(
-        r"[^A-Za-z0-9]+",
-        "_",
-        unicodedata.normalize("NFKD", ESTACION)
-        .encode("ascii", "ignore")
-        .decode("ascii")
-        .replace(".", ""),
-    ).strip("_")
-
-    filename = f"{station_name}.xlsx"
-    return filename
 
 
 def upload_to_minio(file_path, file_name, bucket_name):
@@ -63,9 +47,8 @@ def upload_to_minio(file_path, file_name, bucket_name):
 
     year = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").year
     month = datetime.strptime(FECHA_INICIAL, "%Y-%m-%d").month
-    object_key = f"{year}/{month}/{TIPO_PARAMETROS}/{file_name}"
+    object_key = f"{TIPO_PARAMETROS}/{year}/{month}/{file_name}"
 
-    # Subir archivo
     client.fput_object(
         bucket_name=bucket_name, object_name=object_key, file_path=file_path
     )
@@ -133,8 +116,10 @@ with sync_playwright() as p:
     download = download_info.value
 
     # Guardar el archivo en carpeta local
-    file_name = get_filename()
-    output_filename_path = os.path.join(os.getcwd(), f"data/{file_name}")
+    file_name = f"{SLUG}.xlsx"
+    local_output_dir = os.path.join(os.getcwd(), OUTPUT_DIR)
+    os.makedirs(local_output_dir, exist_ok=True)
+    output_filename_path = os.path.join(local_output_dir, file_name)
     download_path = download.path()
     download.save_as(output_filename_path)
     logger.info(f"Archivo guardado: {output_filename_path}")
@@ -145,6 +130,6 @@ with sync_playwright() as p:
         file_name=file_name,
     )
 
-    print(object_key)  # utilizar para el xcom airflow siguiente tarea
+    print(object_key)  # se utiliza para el xcom airflow siguiente tarea
 
     browser.close()
