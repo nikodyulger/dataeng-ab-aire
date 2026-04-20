@@ -1,0 +1,24 @@
+{
+  "URL_PORTAL": "https://troposfera.es/datos/dev-albacete/#/analisis-de-datos",
+  "HORA_INICIAL": "00:00",
+  "HORA_FINAL": "23:59",
+  "MINIO_ENDPOINT": "host.docker.internal:9000",
+  "MINIO_ACCESS_KEY": "minioadmin",
+  "MINIO_SECRET_KEY": "minioadmin",
+  "MINIO_BUCKET_BRONCE": "bronce",
+  "MINIO_BUCKET_PLATA": "plata",
+  "MINIO_BUCKET_ORO": "oro",
+  "SCRAPER_DOCKER_IMAGE": "scraper-ab-aire:latest",
+  "TRANSFORMER_PLATA_DOCKER_IMAGE": "transformer-plata:latest",
+  "TRANSFORMER_ORO_DOCKER_IMAGE": "transformer-oro:latest",
+  "STATION_MAPPING":{
+    "almansa_esq_hnos_falco_hospital": "Almansa esq. Hnos. Falcó (Hospital)",
+    "av_espana_esq_tetuan": "Av. España esq. Tetuán",
+    "avda_isabel_la_catolica_isleta": "Avda. Isabel La Católica (Isleta)",
+    "ctra_madrid_esq_cronista": "Ctra. Madrid esq. Cronista",
+    "isleta_paseo_cuba_ranas": "Isleta Paseo Cuba (Ranas)",
+    "paseo_cuba_fabrica_harinas": "Paseo Cuba (Fábrica Harinas)",
+    "plaza_carretas": "Plaza Carretas",
+    "seminario_hospital_perpetuo_socorro": "Seminario (Hospital Perpetuo Socorro)"
+  }
+}
