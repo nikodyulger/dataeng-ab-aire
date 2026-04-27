@@ -9,6 +9,7 @@ STATION_MAPPING = Variable.get(
 )
 SCRAPER_DOCKER_IMAGE = Variable.get("SCRAPER_DOCKER_IMAGE")
 TRANSFORMER_PLATA_DOCKER_IMAGE = Variable.get("TRANSFORMER_PLATA_DOCKER_IMAGE")
+TRANSFORMER_ORO_DOCKER_IMAGE = Variable.get("TRANSFORMER_ORO_DOCKER_IMAGE")
 
 ENV_VARS_SCRAPERS = {
     "URL_PORTAL": Variable.get("URL_PORTAL"),
@@ -24,6 +25,7 @@ ENV_VARS_MINIO = {
     "MINIO_SECRET_KEY": Variable.get("MINIO_SECRET_KEY"),
     "MINIO_BUCKET_BRONCE": Variable.get("MINIO_BUCKET_BRONCE"),
     "MINIO_BUCKET_PLATA": Variable.get("MINIO_BUCKET_PLATA"),
+    "MINIO_BUCKET_ORO": Variable.get("MINIO_BUCKET_ORO"),
 }
 
 DOCKER_CONFIG = {
@@ -39,25 +41,26 @@ TRANSFORMER_POOL = "transformer_pool"
 
 
 @dag(
-    dag_id="etl_webscraping_plata",
+    dag_id="etl_ab_aire",
     start_date=datetime(2024, 1, 1),
-    end_date=datetime(2026, 1, 1),
+    end_date=datetime(2026, 3, 1),
     schedule="@monthly",
     catchup=True,
-    max_active_runs=1,
-    max_active_tasks=4,
+    max_active_runs=2,
+    max_active_tasks=6,
     default_args={"retries": 1, "retry_delay": timedelta(minutes=5)},
-    tags=["plata"],
+    tags=["bronce", "plata", "oro"],
 )
-def dag_webscraper_plata():
+def dag_etl_ab_aire():
+    task_groups = []
     for slug, estacion in STATION_MAPPING.items():
 
         @task_group(group_id=f"station_{slug}")
         def station_group():
             for tipo in ("METEO", "CONTAMINANTE"):
                 tipo_key = tipo.lower()
-                scraper_task_id = f"scraper_{tipo_key}"
-                transformer_task_id = f"transformer_{tipo_key}"
+                scraper_task_id = f"scraper_{tipo_key}_bronce"
+                transformer_task_id = f"transformer_{tipo_key}_plata"
 
                 scraper = DockerOperator(
                     task_id=scraper_task_id,
@@ -81,7 +84,7 @@ def dag_webscraper_plata():
                     environment={
                         **ENV_VARS_MINIO,
                         "TIPO_PARAMETROS": tipo,
-                        "OBJECT_KEY": f"{{{{ task_instance.xcom_pull(task_ids='station_{slug}.scraper_{tipo_key}') }}}}",
+                        "OBJECT_KEY": f"{{{{ task_instance.xcom_pull(task_ids='station_{slug}.scraper_{tipo_key}_bronce') }}}}",
                     },
                     pool=TRANSFORMER_POOL,
                     **DOCKER_CONFIG,
@@ -89,7 +92,37 @@ def dag_webscraper_plata():
 
                 scraper >> transformer
 
-        station_group()
+        tg = station_group()
+        task_groups.append(tg)
+
+    # Procesamiento de oro
+    process_meteo = DockerOperator(
+        task_id="process_meteo_oro",
+        image=TRANSFORMER_ORO_DOCKER_IMAGE,
+        environment={
+            **ENV_VARS_MINIO,
+            "TIPO_PARAMETROS": "METEO",
+            "YEAR": "{{ data_interval_start.year }}",
+            "MES": "{{ data_interval_start.month }}",
+        },
+        **DOCKER_CONFIG,
+    )
+
+    process_contaminante = DockerOperator(
+        task_id="process_contaminante_oro",
+        image=TRANSFORMER_ORO_DOCKER_IMAGE,
+        environment={
+            **ENV_VARS_MINIO,
+            "TIPO_PARAMETROS": "CONTAMINANTE",
+            "YEAR": "{{ data_interval_start.year }}",
+            "MES": "{{ data_interval_start.month }}",
+        },
+        **DOCKER_CONFIG,
+    )
+
+    # Los tasks de oro dependen de todos los task groups de plata
+    for tg in task_groups:
+        tg >> [process_meteo, process_contaminante]
 
 
-dag_webscraper_plata()
+dag_etl_ab_aire()
