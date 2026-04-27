@@ -11,14 +11,12 @@
   "SCRAPER_DOCKER_IMAGE": "scraper-ab-aire:latest",
   "TRANSFORMER_PLATA_DOCKER_IMAGE": "transformer-plata:latest",
   "TRANSFORMER_ORO_DOCKER_IMAGE": "transformer-oro:latest",
-  "STATION_MAPPING":{
-    "almansa_esq_hnos_falco_hospital": "Almansa esq. Hnos. Falcó (Hospital)",
-    "av_espana_esq_tetuan": "Av. España esq. Tetuán",
+  "STATION_MAPPING":
+  {
     "avda_isabel_la_catolica_isleta": "Avda. Isabel La Católica (Isleta)",
     "ctra_madrid_esq_cronista": "Ctra. Madrid esq. Cronista",
     "isleta_paseo_cuba_ranas": "Isleta Paseo Cuba (Ranas)",
     "paseo_cuba_fabrica_harinas": "Paseo Cuba (Fábrica Harinas)",
-    "plaza_carretas": "Plaza Carretas",
-    "seminario_hospital_perpetuo_socorro": "Seminario (Hospital Perpetuo Socorro)"
+    "plaza_isabel_ii": "Plaza Isabel II"
   }
 }
