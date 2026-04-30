@@ -88,7 +88,22 @@ Las variables se definen en un archivo `.env` (para desarrollo local) o se puede
 
 Todas las `ESTACIONES` disponibles:
 
-Almansa esq. Hnos. Falcó (Hospital), Arq. Vandelvira (CSC El Ensanche), Av. España esq. Tetuán, Av. España frente Punta
-Av. Toreros frente C.P. Feria, Avda. Isabel La Católica (Isleta), Calle Caba Villacerrada, Ctra. Madrid esq. Cronista
-Isleta Paseo Cuba (Ranas), Paseo Cuba (Fábrica Harinas), Paseo Feria Isleta Molino, Plaza Carretas
-Plaza Isabel II, Rosario esquina Arquitecto Vandelvira, Seminario (Hospital Perpetuo Socorro)
+```json
+{
+    "almansa_esq_hnos_falco_hospital": "Almansa esq. Hnos. Falcó (Hospital)",
+    "arg_vandelvira_el_ensanche": "Arq. Vandelvira (CSC El Ensanche)",
+    "avda_espana_esq_tetuan": "Av. España esq. Tetuán",
+    "avda_espana_frente_punta" :"Av. España frente Punta",
+    "avda_toreros_cp_feria": "Av. Toreros frente C.P. Feria",
+    "avda_isabel_la_catolica_isleta": "Avda. Isabel La Católica (Isleta)",
+    "calle_caba_villacerrada": "Calle Caba Villacerrada",
+    "ctra_madrid_esq_cronista": "Ctra. Madrid esq. Cronista",
+    "isleta_paseo_cuba_ranas": "Isleta Paseo Cuba (Ranas)",
+    "paseo_cuba_fabrica_harinas": "Paseo Cuba (Fábrica Harinas)",
+    "paseo_feria_isleta_molino": "Paseo Feria Isleta Molino",
+    "plaza_carretas": "Plaza Carretas",
+    "plaza_isabel_ii": "Plaza Isabel II",
+    "rosario_esquina_arq_vandelvira": "Rosario esquina Arquitecto Vandelvira",
+    "seminario_hospital_perpetuo_socorro": "Seminario (Hospital Perpetuo Socorro)"
+  }
+```

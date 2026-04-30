@@ -104,30 +104,6 @@ def impute_nulls(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def add_time_features(df: pl.DataFrame) -> pl.DataFrame:
-
-    if "fecha" not in df.columns:
-        logger.warning(
-            "No se encontró columna 'fecha'. Omitiendo Feature Engineering de tiempo."
-        )
-        return df
-
-    logger.info("Añadiendo características temporales")
-
-    df = df.with_columns(pl.col("fecha").str.to_datetime(strict=False))
-
-    return df.with_columns(
-        [
-            pl.col("fecha").dt.year().alias("year"),
-            pl.col("fecha").dt.month().alias("month"),
-            pl.col("fecha").dt.day().alias("day"),
-            pl.col("fecha").dt.weekday().alias("weekday"),
-            pl.col("fecha").dt.week().alias("week"),
-            pl.col("fecha").dt.quarter().alias("quarter"),
-        ]
-    )
-
-
 def add_meteo_features(df: pl.DataFrame) -> pl.DataFrame:
     logger.info("Añadiendo características nuevas METEO")
 
@@ -224,7 +200,6 @@ def apply_transformations(df: pl.DataFrame, object_key: str) -> pl.DataFrame:
         df = add_meteo_features(df)
 
     df = round_numeric_cols(df)
-    df = add_time_features(df)
 
     return df
 

@@ -15,8 +15,8 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 BUCKET_ORIGEN = os.getenv("MINIO_BUCKET_PLATA")
 BUCKET_DESTINO = os.getenv("MINIO_BUCKET_ORO")
 TIPO_PARAMETROS = os.getenv("TIPO_PARAMETROS")  # "METEO" o "CONTAMINANTE"
-TARGET_YEAR = os.getenv("YEAR", "2025")
-TARGET_MONTH = os.getenv("MES", "11")
+TARGET_YEAR = os.getenv("YEAR")
+TARGET_MONTH = os.getenv("MES")
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -81,18 +81,6 @@ def calculate_wind_chill(temp_c: pl.Expr, wind_speed_kmh: pl.Expr) -> pl.Expr:
 def transform_meteo(df: pl.DataFrame) -> pl.DataFrame:
     logger.info("Aplicando transformaciones METEO en oro")
 
-    # Agregados diarios por estación
-    daily_agg = df.group_by(["station_slug", "year", "month", "day"]).agg(
-        pl.col("temp_c").mean().alias("temp_c_daily_mean"),
-        pl.col("temp_c").max().alias("temp_c_daily_max"),
-        pl.col("temp_c").min().alias("temp_c_daily_min"),
-        pl.col("temp_c").std().alias("temp_c_daily_std"),
-        pl.col("humedad").mean().alias("humedad_daily_mean"),
-        pl.col("pres").mean().alias("pres_daily_mean"),
-        pl.col("vel_viento_ms").mean().alias("vel_viento_ms_daily_mean"),
-        pl.col("ruido_db").mean().alias("ruido_db_daily_mean"),
-    )
-
     # Índice de sensación térmica
     df = df.with_columns(
         pl.when((pl.col("temp_c") <= 10) & (pl.col("vel_viento") > 4.8))
@@ -101,25 +89,27 @@ def transform_meteo(df: pl.DataFrame) -> pl.DataFrame:
         .alias("wind_chill")
     )
 
-    # Promedios móviles
-    df = df.with_columns(
-        pl.col("temp_c").rolling_mean(3).alias("temp_c_rm3"),
-        pl.col("temp_c").rolling_mean(6).alias("temp_c_rm6"),
-        pl.col("humedad").rolling_mean(3).alias("humedad_rm3"),
-        pl.col("vel_viento_ms").rolling_mean(3).alias("vel_viento_ms_rm3"),
+    # Agregados diarios por estación (manteniendo la granularidad horaria original)
+    daily_agg = (
+        df.with_columns(_join_date=pl.col("fecha").dt.date())
+        .group_by(["station_slug", "_join_date"])
+        .agg(
+            pl.col("temp_c").mean().alias("temp_c_daily_mean"),
+            pl.col("temp_c").max().alias("temp_c_daily_max"),
+            pl.col("temp_c").min().alias("temp_c_daily_min"),
+            pl.col("temp_c").std().alias("temp_c_daily_std"),
+            pl.col("humedad").mean().alias("humedad_daily_mean"),
+            pl.col("pres").mean().alias("pres_daily_mean"),
+            pl.col("vel_viento_ms").mean().alias("vel_viento_ms_daily_mean"),
+            pl.col("ruido_db").mean().alias("ruido_db_daily_mean"),
+        )
     )
 
-    # Anomalías respecto a media mensual
-    monthly_mean_temp = df.group_by("station_slug").agg(
-        pl.col("temp_c").mean().alias("temp_c_monthly_mean")
+    df = (
+        df.with_columns(_join_date=pl.col("fecha").dt.date())
+        .join(daily_agg, on=["station_slug", "_join_date"], how="left")
+        .drop("_join_date")
     )
-    df = df.join(monthly_mean_temp, on="station_slug", how="left")
-    df = df.with_columns(
-        (pl.col("temp_c") - pl.col("temp_c_monthly_mean")).alias("temp_c_anomaly")
-    )
-
-    # Unir con agregados diarios
-    df = df.join(daily_agg, on=["station_slug", "year", "month", "day"], how="left")
 
     return df
 
@@ -146,73 +136,33 @@ def transform_contaminante(df: pl.DataFrame) -> pl.DataFrame:
                 .alias(f"{contam}_exceeds_threshold")
             )
 
-    # Agregados diarios por estación
-    daily_agg = df.group_by(["station_slug", "year", "month", "day"]).agg(
-        pl.col("pm10").mean().alias("pm10_daily_mean"),
-        pl.col("pm10").max().alias("pm10_daily_max"),
-        pl.col("pm25").mean().alias("pm25_daily_mean"),
-        pl.col("pm25").max().alias("pm25_daily_max"),
-        pl.col("no2").mean().alias("no2_daily_mean"),
-        pl.col("o3").mean().alias("o3_daily_mean"),
-        pl.col("so2").mean().alias("so2_daily_mean"),
-        pl.col("co").mean().alias("co_daily_mean"),
-        # Conteo de horas con excedencias
-        pl.col("pm10_exceeds_threshold").sum().alias("pm10_hours_exceeding"),
-        pl.col("pm25_exceeds_threshold").sum().alias("pm25_hours_exceeding"),
-        pl.col("no2_exceeds_threshold").sum().alias("no2_hours_exceeding"),
-        pl.col("o3_exceeds_threshold").sum().alias("o3_hours_exceeding"),
-        pl.col("so2_exceeds_threshold").sum().alias("so2_hours_exceeding"),
-        pl.col("co_exceeds_threshold").sum().alias("co_hours_exceeding"),
+    # Agregados diarios por estación (manteniendo la granularidad horaria original)
+    daily_agg = (
+        df.with_columns(_join_date=pl.col("fecha").dt.date())
+        .group_by(["station_slug", "_join_date"])
+        .agg(
+            pl.col("pm10").mean().alias("pm10_daily_mean"),
+            pl.col("pm10").max().alias("pm10_daily_max"),
+            pl.col("pm25").mean().alias("pm25_daily_mean"),
+            pl.col("pm25").max().alias("pm25_daily_max"),
+            pl.col("no2").mean().alias("no2_daily_mean"),
+            pl.col("o3").mean().alias("o3_daily_mean"),
+            pl.col("so2").mean().alias("so2_daily_mean"),
+            pl.col("co").mean().alias("co_daily_mean"),
+            pl.col("pm10_exceeds_threshold").sum().alias("pm10_hours_exceeding"),
+            pl.col("pm25_exceeds_threshold").sum().alias("pm25_hours_exceeding"),
+            pl.col("no2_exceeds_threshold").sum().alias("no2_hours_exceeding"),
+            pl.col("o3_exceeds_threshold").sum().alias("o3_hours_exceeding"),
+            pl.col("so2_exceeds_threshold").sum().alias("so2_hours_exceeding"),
+            pl.col("co_exceeds_threshold").sum().alias("co_hours_exceeding"),
+        )
     )
 
-    # Porcentaje de horas en cada categoría ICA
-    ica_cats = [
-        "buena",
-        "razonablemente_buena",
-        "regular",
-        "desfavorable",
-        "muy_desfavorable",
-        "extremadamente_desfavorable",
-    ]
-    for contam in ["pm10", "pm25", "no2", "o3", "so2"]:
-        if f"{contam}_ica_cat" in df.columns:
-            cat_counts = (
-                df.filter(pl.col(f"{contam}_ica_cat").is_not_null())
-                .group_by(["station_slug", "year", "month", "day", f"{contam}_ica_cat"])
-                .agg(pl.len().alias(f"{contam}_ica_cat_count"))
-            )
-            # Calcular porcentaje
-            total_hours = df.group_by(["station_slug", "year", "month", "day"]).agg(
-                pl.len().alias("total_hours")
-            )
-            cat_counts = cat_counts.join(
-                total_hours, on=["station_slug", "year", "month", "day"], how="left"
-            )
-            cat_counts = cat_counts.with_columns(
-                (pl.col(f"{contam}_ica_cat_count") / pl.col("total_hours") * 100).alias(
-                    f"{contam}_ica_cat_percentage"
-                )
-            )
-            # Pivot para tener columnas por categoría
-            cat_counts = cat_counts.pivot(
-                values=f"{contam}_ica_cat_percentage",
-                index=["station_slug", "year", "month", "day"],
-                on=f"{contam}_ica_cat",
-                aggregate_function="first",
-            )
-            # Renombrar columnas
-            rename_dict = {
-                cat: f"{contam}_ica_{cat}_pct"
-                for cat in ica_cats
-                if cat in cat_counts.columns
-            }
-            cat_counts = cat_counts.rename(rename_dict)
-            daily_agg = daily_agg.join(
-                cat_counts, on=["station_slug", "year", "month", "day"], how="left"
-            )
-
-    # Unir con agregados diarios
-    df = df.join(daily_agg, on=["station_slug", "year", "month", "day"], how="left")
+    df = (
+        df.with_columns(_join_date=pl.col("fecha").dt.date())
+        .join(daily_agg, on=["station_slug", "_join_date"], how="left")
+        .drop("_join_date")
+    )
 
     return df
 
@@ -235,20 +185,23 @@ def process_tipo_parametros(tipo_parametros: str):
         df = read_csv_from_minio(f, BUCKET_ORIGEN)
         # Extraer station_slug del path
         parts = f.split("/")
-        station_slug = parts[-1].replace(
-            ".csv", ""
-        )  # Asumiendo que el filename es station_slug.csv
+        station_slug = parts[-1].replace(".csv", "")
         df = df.with_columns(
             (pl.lit(station_slug)).alias("station_slug"),
-            (pl.lit(tipo_parametros)).alias(
-                "tipo_parametros"
-            ),  # no se si es necesario!!
+            (pl.lit(tipo_parametros)).alias("tipo_parametros"),
         )
         dfs.append(df)
 
     df = pl.concat(dfs, how="vertical")
 
     logger.info(f"DataFrame concatenado: {df.shape}")
+
+    if "fecha" not in df.columns:
+        raise ValueError(
+            "La columna 'fecha' es obligatoria para el transformador de oro."
+        )
+
+    df = df.with_columns(pl.col("fecha").str.to_datetime(strict=False))
 
     if TIPO_PARAMETROS == "METEO":
         df = transform_meteo(df)
