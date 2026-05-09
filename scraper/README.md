@@ -1,47 +1,37 @@
 
-# 🌦️ Scraper Datos Estaciones Meteorológicas de  Albacete
+# 🌦️ Scraper de Datos de Estaciones Meteorológicas de Albacete
 
-Esta parte del proyecto automatiza la descarga de los datos meteorológicos y de contaminación del portal [Red de vigilancia ambiental del Ayuntamiento de Albacete](https://troposfera.es/datos/dev-albacete/#/dashboard)
+Este módulo automatiza la extracción de datos meteorológicos y de contaminación desde el portal [Troposfera Albacete](https://troposfera.es/datos/dev-albacete/#/dashboard).
 
-El script permite seleccionar una estación meteorológica, rango de fechas, horas y otros parámetros, ejecutar la consulta en el navegador y descargar el resultado en formato **Excel (.xlsx)**.  Además, está preparado para funcionar tanto **en local** como dentro de un **contenedor Docker**.
+El script `extract_data.py`:
+- Lee variables desde `.env` o desde el entorno Docker
+- Inicia un navegador Chromium con Playwright
+- Rellena el formulario de fechas, estación y parámetros
+- Ejecuta la consulta y descarga el resultado en Excel
+- Guarda el archivo localmente
+- Sube el Excel a MinIO para que el pipeline de Airflow continue
 
-## Descripción
+## Cómo funciona
 
-El script script.py realiza las siguientes tareas:
+1. El script carga variables de entorno y configura los parámetros.
+2. Accede al portal y selecciona la estación.
+3. Selecciona los parámetros (`METEO` o `CONTAMINANTE`).
+4. Lanza la consulta y espera el botón de descarga.
+5. Descarga el archivo `xlsx` y lo guarda en `OUTPUT_DIR`.
+6. Sube ese archivo a MinIO en el bucket definido por `MINIO_BUCKET`.
 
-Carga variables de entorno desde el archivo .env (si existe) o desde las variables del entorno Docker.
+> Nota: en el DAG de Airflow, este script usa las variables `SLUG` y `ESTACION` para nombrar el archivo y enviar el resultado al siguiente task vía XCom.
 
-Inicia un navegador Chromium mediante Playwright.
-El script script.py realiza las siguientes tareas:
+## Uso desde Docker
 
-Carga variables de entorno desde el archivo .env (si existe) o desde las variables del entorno Docker.
-
-Inicia un navegador Chromium mediante Playwright.
-
-1. Accede a la URL del portal Troposfera.
-2. Rellena el formulario de búsqueda:
-
-    - Fecha y hora inicial/final
-    - Estación meteorológica
-    - Parámetros meteorológicos o contaminantes
-
-3. Lanza la consulta haciendo clic en *“Consultar”*.
-4. Espera la tabla de resultados y el botón *“Descargar”*.
-5. Descarga el archivo **Excel (.xlsx)** con los resultados.
-6. Guarda el archivo localmente con un nombre único basado en la estación y fechas (por ejemplo:
-`Avda_Isabel_La_Catolica_2025-09-01_00-00_a_2025-09-30_23-59.xlsx`).
-
-## Poner en marcha
-
-### Desde un contenedor
-
-Crear la imagen
+Construir la imagen:
 
 ```bash
 docker build -t scraper-ab-aire .
 ```
 
-Ejecutar el contenedor con variables de entorno guardando los ficheros descargados en tu máquina a través de un volumen
+Ejecutar el contenedor:
+
 ```bash
 docker run --rm \
   --env-file .env \
@@ -49,61 +39,79 @@ docker run --rm \
   scraper-ab-aire
 ```
 
-**NOTA** En tu máquina aparecerá una carpeta *data* y dentro del contenedor el script está dejando el fichero dentro del WORKDIR `/scraper/data`
-### Desde el entorno local
+Esto generará archivos locales en `./data` y, además, subirá el Excel resultante a MinIO.
 
-Creamos el entorno virtual
+## Uso en local
+
+Crear y activar el entorno virtual:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate      # En Linux/Mac
-# o
-.venv\Scripts\activate         # En Windows
+source .venv/bin/activate      # En Mac/Linux
+# .venv\Scripts\activate     # En Windows
 ```
 
-Instalamos las dependencias
+Instalar dependencias:
+
 ```bash
 pip install -r requirements.txt
 playwright install
 ```
 
-Ejecutamos
+Ejecutar el script:
+
 ```bash
 python extract_data.py
 ```
 
 ## Variables de entorno
-Las variables se definen en un archivo `.env` (para desarrollo local) o se pueden pasar directamente a Docker con `--env` o `--env-file`.
 
-| Variable          | Descripción                                                        | Ejemplo                                                        |
-| ----------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
-| `URL_PORTAL`      | URL del portal Troposfera a scrapear                               | `https://troposfera.es/datos/dev-albacete/#/analisis-de-datos` |
-| `FECHA_INICIAL`   | Fecha inicial en formato `YYYY-MM-DD`                              | `2025-09-01`                                                   |
-| `FECHA_FINAL`     | Fecha final en formato `YYYY-MM-DD`                                | `2025-09-30`                                                   |
-| `HORA_INICIAL`    | Hora inicial en formato `HH:MM`                                    | `00:00`                                                        |
-| `HORA_FINAL`      | Hora final en formato `HH:MM`                                      | `23:59`                                                        |
-| `ESTACION_METEO`  | Nombre exacto de la estación                                       | `Avda. Isabel La Católica (Isleta)`                            |
-| `TIPO_PARAMETROS` | Tipo de parámetros a consultar (`CONTAMINANTE` o `METEO`)          | `METEO`                                                        |
-| `LOG_LEVEL`       | Nivel de detalle en los logs (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `INFO`                                                         |
+Este script utiliza las siguientes variables:
 
-Todas las `ESTACIONES` disponibles:
+| Variable | Descripción | Ejemplo |
+| --- | --- | --- |
+| `URL_PORTAL` | URL del portal Troposfera | `https://troposfera.es/datos/dev-albacete/#/analisis-de-datos` |
+| `FECHA_INICIAL` | Fecha inicial en formato `YYYY-MM-DD` | `2025-09-01` |
+| `FECHA_FINAL` | Fecha final en formato `YYYY-MM-DD` | `2025-09-30` |
+| `HORA_INICIAL` | Hora inicial en formato `HH:MM` | `00:00` |
+| `HORA_FINAL` | Hora final en formato `HH:MM` | `23:59` |
+| `ESTACION` | Nombre exacto de la estación a seleccionar en el portal | `Avda. Isabel La Católica (Isleta)` |
+| `SLUG` | Identificador corto de la estación para el nombre del archivo | `avda_isabel_la_catolica_isleta` |
+| `TIPO_PARAMETROS` | `METEO` o `CONTAMINANTE` | `METEO` |
+| `OUTPUT_DIR` | Carpeta local donde se guarda el Excel descargado | `data` |
+| `MINIO_ENDPOINT` | Dirección y puerto de MinIO | `host.docker.internal:9000` |
+| `MINIO_ACCESS_KEY` | Usuario MinIO | `minioadmin` |
+| `MINIO_SECRET_KEY` | Contraseña MinIO | `minioadmin` |
+| `MINIO_BUCKET` | Bucket de MinIO donde se sube el Excel | `bronce` |
+| `LOGGING_LEVEL` | Nivel de logs | `INFO` |
 
-```json
-{
-    "almansa_esq_hnos_falco_hospital": "Almansa esq. Hnos. Falcó (Hospital)",
-    "arg_vandelvira_el_ensanche": "Arq. Vandelvira (CSC El Ensanche)",
-    "avda_espana_esq_tetuan": "Av. España esq. Tetuán",
-    "avda_espana_frente_punta" :"Av. España frente Punta",
-    "avda_toreros_cp_feria": "Av. Toreros frente C.P. Feria",
-    "avda_isabel_la_catolica_isleta": "Avda. Isabel La Católica (Isleta)",
-    "calle_caba_villacerrada": "Calle Caba Villacerrada",
-    "ctra_madrid_esq_cronista": "Ctra. Madrid esq. Cronista",
-    "isleta_paseo_cuba_ranas": "Isleta Paseo Cuba (Ranas)",
-    "paseo_cuba_fabrica_harinas": "Paseo Cuba (Fábrica Harinas)",
-    "paseo_feria_isleta_molino": "Paseo Feria Isleta Molino",
-    "plaza_carretas": "Plaza Carretas",
-    "plaza_isabel_ii": "Plaza Isabel II",
-    "rosario_esquina_arq_vandelvira": "Rosario esquina Arquitecto Vandelvira",
-    "seminario_hospital_perpetuo_socorro": "Seminario (Hospital Perpetuo Socorro)"
-  }
+### Ejemplo mínimo de `.env`
+
+```ini
+URL_PORTAL=https://troposfera.es/datos/dev-albacete/#/analisis-de-datos
+FECHA_INICIAL=2025-09-01
+FECHA_FINAL=2025-09-30
+HORA_INICIAL=00:00
+HORA_FINAL=23:59
+ESTACION=Avda. Isabel La Católica (Isleta)
+SLUG=avda_isabel_la_catolica_isleta
+TIPO_PARAMETROS=METEO
+OUTPUT_DIR=data
+MINIO_ENDPOINT=localhost:9000 **si ejecutas por fuera del docker compose, sino host.docker.internal**
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=bronce
+LOGGING_LEVEL=INFO
 ```
+
+## Salida y formato
+
+- El archivo local se guarda en `OUTPUT_DIR/<SLUG>.xlsx`.
+- El contenido se sube a MinIO en:
+  `MINIO_BUCKET/<TIPO_PARAMETROS>/<AÑO>/<MES>/<SLUG>.xlsx`.
+- El script imprime la clave `object_key` al final, lo que permite a Airflow usar esa ruta en la siguiente etapa.
+
+
+## Observaciones
+- `SLUG` y `OUTPUT_DIR` son necesarios para que el archivo tenga nombre único.
+- Si el portal cambia de selectores o de estructura, puede ser necesario actualizar los selectores de Playwright.
